@@ -46,6 +46,9 @@ type goal = {
     goal : Term.t
 }
 
+let shift  hyps  =
+    StringMap.map Term.shift hyps 
+
 let init_goal goal =
     { goal; ctx = Ctx.empty; hyps = StringMap.empty }
 
@@ -66,7 +69,11 @@ let proof_status ({ goals } as state) =
     let print_goal {ctx; hyps; goal} =
         let print_hyp name prop =
             printf " (%s)\t %s\n" name (Term.to_string ctx prop)
+        and print_var name type_ =
+            printf " %s : %s\n" name (Type.to_string type_)
         in
+        (if not (Ctx.is_empty ctx) then printf "vars:\n");
+        Ctx.iter print_var ctx;
         (if not (StringMap.is_empty hyps) then printf "hyps:\n");
         StringMap.iter print_hyp hyps;
         printf "===============================================\n";
@@ -181,7 +188,8 @@ let all_right x = apply begin function
         let arg = Term.App (Term.Var 0, []) in
         let goal = Term.App (head, [arg]) in
         let ctx = Ctx.add x typ g.ctx in
-        [ { g with goal; ctx } ]
+        let hyps = shift g.hyps in
+        [ { g with goal; ctx; hyps } ]
     | _ -> failwith "all_right"
 end 
 

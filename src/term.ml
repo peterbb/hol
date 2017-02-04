@@ -130,6 +130,8 @@ module Ctx : sig
     val add : string -> Type.t -> t -> t
     val lookup : int -> t -> Type.t
     val name : int -> t -> string
+    val is_empty : t -> bool
+    val iter : (string -> Type.t -> unit) -> t -> unit
 end = struct
     type t = (string * Type.t) list
 
@@ -137,6 +139,8 @@ end = struct
     let add var type_ ctx = (var, type_) :: ctx
     let lookup var ctx = snd (List.nth ctx var)
     let name var ctx = fst (List.nth ctx var)
+    let is_empty ctx = ctx = []
+    let iter f = List.iter (fun (x, y) -> f x y)
 end
 
 
@@ -151,6 +155,7 @@ module Term : sig
 
     val check : Sign.t -> Ctx.t -> t -> Type.t -> unit
     val to_string : Ctx.t -> t -> string
+    val shift : t -> t
 end = struct
     type t =
         | App   of head * t list
@@ -194,6 +199,22 @@ end = struct
              end
 
          in check_term
+
+    let shift =
+        let rec shift_term lvl = function
+            | Lam (x, e) ->
+                Lam (x, shift_term (1 + lvl) e)
+            | App (h, es) -> 
+                App (shift_head lvl h, List.map (shift_term lvl) es)
+        
+        and shift_head lvl = function
+            | Var i when i >= lvl -> Var (1 + i)
+            | Var i -> Var i
+            | Con (name, type_) -> Con (name, type_)
+            | Redex (e, type_) -> Redex (shift_term lvl e, type_)
+        in shift_term 0
+
+
 
     open Printf
     let rec to_string ctx = function

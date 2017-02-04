@@ -2,12 +2,19 @@ open State
 open Term
 
 let binop name a b = Term.App (Term.Con (name, None), [a; b])
+let quant name var type_ body =
+    Term.App (Term.Con (name, Some type_),
+        [Term.Lam (var, body)])
 
+let _o = Type.Atom "o"
+let _i = Type.Atom "i"
 let _true = Term.App (Term.Con ("true", None), [])
 let _false = Term.App (Term.Con ("false", None), [])
+let _var i = Term.App (Term.Var i, [])
 let _and = binop "and"
 let _or = binop "or"
 let _imp = binop "imp"
+let _all = quant "all"
 
 
 let _ =
@@ -69,4 +76,12 @@ let _ =
             |> proof_status
             |> false_left "h1"
         |> qed
+
+    |> prove "forall x:i, true"
+            (_all "x" _i (_all "y" _i _true))
+        |> proof_status
+        |> all_right "z"
+        |> proof_status
+
+
 
