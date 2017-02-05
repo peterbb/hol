@@ -2,36 +2,22 @@ module Type : sig
     type t = 
         | Atom  of string
         | Arrow of t * t
-
-    val to_string : t -> string
 end = struct
     type t =
         | Atom   of string
         | Arrow  of t * t
-
-    open Printf
-    let rec to_string = function
-        | Atom s -> s
-        | Arrow (Atom s, b) -> sprintf "%s -> %s" s (to_string b)
-        | Arrow (a, b) -> sprintf "(%s) -> %s" (to_string a) (to_string b)
 end
 
 module Con : sig
     type t = 
        | Single of string
        | Family of string * Type.t
-    val simple : string -> t
-    val indexed : string -> Type.t -> t
     val name : t -> string
     val index : t -> Type.t option
-    val to_string : t -> string
 end = struct
     type t =
         | Single of string
         | Family of string * Type.t
-
-    let simple s = Single s
-    let indexed s t = Family (s, t)
 
     let name = function
         | Single c | Family (c, _) -> c
@@ -39,13 +25,7 @@ end = struct
     let index = function
         | Single _ -> None
         | Family (_, i) -> Some i
-
-    let to_string = function
-        | Single c -> c
-        | Family (c, typ) ->
-            Printf.sprintf "%s[%s]" c (Type.to_string typ)
 end
-
 
 module Term : sig
     type t =
@@ -62,7 +42,6 @@ module Term : sig
     val con : Con.t -> t list -> t
     val redex : t -> t list -> t
 
-    val to_string : t -> string
     val shift : t -> t
 end = struct
     type t =
@@ -189,24 +168,4 @@ end = struct
         and shift_spine lvl = List.map (shift_term lvl)
 
         in shift_term 0
-
-    open Printf
-    let rec to_string = function
-        | App (head, spine) ->
-            let head = head_to_string head in
-            let spine = List.map arg_to_string spine in
-            String.concat " " (head :: spine)
-        | Lam (x, e) ->
-            sprintf "\\%s. %s" x (to_string e)
-
-    and head_to_string = function
-        | Var i ->
-            sprintf "$%d" i
-        | Con c ->
-            sprintf "%s" (Con.to_string c)
-    and arg_to_string = function
-        | App (head, []) ->
-            head_to_string head
-        | e ->
-            sprintf "(%s)" (to_string e)
 end

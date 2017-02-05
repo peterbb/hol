@@ -153,16 +153,16 @@ end = struct
     let display {ctx; hyps; goal} =
         let open Printf in
         let print_hyp name prop =
-            printf " (%s)\t %s\n" name (Ast.Term.to_string prop)
+            printf " (%s)\t %s\n" name (Print.term_to_string ctx prop)
         and print_var name type_ =
-            printf " %s : %s\n" name (Ast.Type.to_string type_)
+            printf " %s : %s\n" name (Print.type_to_string type_)
         in
         (if not (Typing.Ctx.is_empty ctx) then printf "vars:\n");
         Typing.Ctx.iter print_var ctx;
         (if not (StringMap.is_empty hyps) then printf "hyps:\n");
         StringMap.iter print_hyp hyps;
         printf "===============================================\n";
-        printf " %s\n" (Ast.Term.to_string goal)
+        printf " %s\n" (Print.term_to_string ctx goal)
         
 
     (*
