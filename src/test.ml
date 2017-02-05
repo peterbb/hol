@@ -1,89 +1,30 @@
 open State
-open Term
-
-(*
-let binop name a b = Term.App (Term.Con (name, None), [a; b])
-let quant name var type_ body =
-    Term.App (Term.Con (name, Some type_),
-        [Term.Lam (var, body)])
-
-let _o = Type.Atom "o"
-let _i = Type.Atom "i"
-let _true = Term.App (Term.Con ("true", None), [])
-let _false = Term.App (Term.Con ("false", None), [])
-let _var i = Term.App (Term.Var i, [])
-let _and = binop "and"
-let _or = binop "or"
-let _imp = binop "imp"
-let _all = quant "all"
+open HOL
+open Ast
 
 
-let _ =
-    init
-    |> prove "trivial_truth" _true
-        |> proof_status
-        |> true_right
-        |> proof_status
-        |> qed
+let _ = Theory.init
 
-    |> prove "true_and_true" (_and _true _true)
-        |> and_right
-        (* Left hand side *)
-            |> true_right
-        (* Right hand side *)
-            |> true_right
-        |> qed
+    |> Theory.prove "p implies p" (_all "p" o (_imp (_x 0) (_x 0)))
+        |> Proof.status
+        |> Proof.apply (Goal.all_right "q")
+        |> Proof.status
+        |> Proof.apply (Goal.imp_right "h")
+        |> Proof.status
+        |> Proof.apply (Goal.assumption "h")
+        |> Proof.status
+        |> Proof.qed
 
-    |> prove "true_implies_true" (_imp _true _true)
-        |> proof_status
-        |> imp_right "h"
-        |> proof_status
-        |> true_right
-        |> qed
+    |> Theory.prove "if p and q, then q and p"
+        (_all "p" o (_all "q" o
+                        (_imp (_and (_x 1) (_x 0))
+                              (_and (_x 0) (_x 1)))))
+        |> Proof.apply (Goal.all_right "p'")
+        |> Proof.apply (Goal.all_right "q'")
+        |> Proof.apply (Goal.imp_right "h")
+        |> Proof.apply (Goal.and_left "h" "h0" "h1")
+        |> Proof.apply Goal.and_right 
+            |> Proof.apply (Goal.assumption "h1")   
+            |> Proof.apply (Goal.assumption "h0")
+        |> Proof.qed
 
-    |> prove "true_or_false" (_or _true _false)
-        |> or_right_0 |> true_right
-        |> qed
-
-    |> prove "false_or_true" (_or _false _true)
-        |> or_right_1 |> true_right
-        |> qed
-
-    |> prove "false_implies_false" (_imp _false _false)
-        |> proof_status
-        |> imp_right "h"
-        |> proof_status
-        |> false_left "h"
-        |> qed
-
-    |> prove "false_and_true_implies_false"
-             (_imp (_and _false _true) _false)
-        |> proof_status
-        |> imp_right "h"
-        |> proof_status
-        |> and_left "h" "h0" "h1"
-        |> proof_status
-        |> false_left "h0"
-        |> qed
-
-    |> prove "false_or_false_implies_false"
-            (_imp (_or _false _false) _false)
-        |> imp_right "h"
-        |> or_left "h" "h0" "h1"
-        (* First case *)
-            |> proof_status
-            |> false_left "h0"
-        (* Second case *)
-            |> proof_status
-            |> false_left "h1"
-        |> qed
-
-    |> prove "forall x:i, true"
-            (_all "x" _i (_all "y" _i _true))
-        |> proof_status
-        |> all_right "z"
-        |> proof_status
-
-
-
-*)

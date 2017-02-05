@@ -1,4 +1,19 @@
-open Term
+open Ast
+
+module HOL : sig
+    val o   : Type.t
+    val nat : Type.t
+ 
+    val _x : int -> Term.t
+
+    val _true  : Term.t
+    val _false : Term.t
+    val _and   : Term.t -> Term.t -> Term.t
+    val _or    : Term.t -> Term.t -> Term.t
+    val _imp   : Term.t -> Term.t -> Term.t
+    val _all   : string -> Type.t -> Term.t -> Term.t
+    val _ex   : string -> Type.t -> Term.t -> Term.t
+end
 
 module rec Theory : sig
     type t
@@ -31,6 +46,7 @@ and Proof : sig
     type t
     val apply   : Goal.tactic -> t -> t
     val qed     : t -> Theory.t
+    val status  : t -> t
 end
 
 

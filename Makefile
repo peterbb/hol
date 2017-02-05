@@ -1,8 +1,9 @@
 
 TARGET=test
+# OCAMLBUILDFLAGS= -use-menhir
 
 default:
-	ocamlbuild src/${TARGET}.byte
+	ocamlbuild ${OCAMLBUILDFLAGS} src/${TARGET}.byte
 	ocamlrun ${TARGET}.byte
 
 clean:

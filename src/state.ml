@@ -1,4 +1,43 @@
-open Term
+open Ast
+
+module HOL : sig
+    val atom : string -> Type.t
+    val o : Type.t
+    val nat : Type.t
+    val arr : Type.t -> Type.t -> Type.t
+
+    val _x : int -> Term.t
+
+    val _false : Term.t
+    val _true  : Term.t
+    val _and   : Term.t -> Term.t -> Term.t
+    val _or    : Term.t -> Term.t -> Term.t
+    val _imp   : Term.t -> Term.t -> Term.t
+    val _all   : string -> Type.t -> Term.t -> Term.t
+    val _ex   : string -> Type.t -> Term.t -> Term.t
+   
+end = struct
+    open Type
+
+    let atom a = Atom a
+    let arr a b = Arrow (a, b)
+    let o = atom "o"
+    let nat = atom "nat"
+
+    let _x x = Term.App (Term.Var x, [])
+    
+    let _true = Term.con "true" []
+    let _false = Term.con "false" []
+    let _and a b = Term.con "and" [a; b]
+    let _or a b = Term.con "or" [a; b]
+    let _imp a b = Term.con "imp" [a; b]
+    let _all x ty body =
+        Term.icon "all" ty [Term.lam x body]
+    let _ex x ty body =
+        Term.icon "ex" ty [Term.lam x body]
+
+end
+
 
 module rec Theory : sig
     type t = {
@@ -259,8 +298,7 @@ end = struct
      *)
     let all_right x _ = function
         | { goal = Term.App (Term.Con ("all", Some typ), [body]) } as g ->
-            let arg = Term.App (Term.Var 0, []) in
-            let goal = Term.redex body [arg] in
+            let goal = Term.redex (Term.shift body) [Term.var 0 []] in
             let ctx = Ctx.add x typ g.ctx in
             [ { g with goal; ctx } |> shift_hyps]
         | _ -> failwith "all_right"
@@ -304,7 +342,8 @@ end = struct
             let hyps = hyps |>
                        StringMap.remove h |>
                        StringMap.map Term.shift |>
-                       StringMap.add h body in
+                       StringMap.add h
+                          (Term.redex (Term.shift body) [Term.var 0 []]) in
             let goal = Term.shift goal in
             [{ ctx; hyps; goal }]
         | _ -> failwith "ex_left"
