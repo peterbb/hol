@@ -1,6 +1,7 @@
 open State
 open Term
 
+(*
 let binop name a b = Term.App (Term.Con (name, None), [a; b])
 let quant name var type_ body =
     Term.App (Term.Con (name, Some type_),
@@ -85,3 +86,4 @@ let _ =
 
 
 
+*)

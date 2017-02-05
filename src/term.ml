@@ -151,7 +151,14 @@ module Term : sig
     and head =
         | Var   of int
         | Con   of string * Type.t option
-        | Redex of t * Type.t
+
+    val eq : t -> t -> bool
+
+    val lam : string -> t -> t
+    val var : int -> t list -> t
+    val con : string -> t list -> t
+    val icon : string -> Type.t -> t list -> t
+    val redex : t -> t list -> t
 
     val check : Sign.t -> Ctx.t -> t -> Type.t -> unit
     val to_string : Ctx.t -> t -> string
@@ -163,67 +170,91 @@ end = struct
     and head =
         | Var   of int
         | Con   of string * Type.t option
-        | Redex of t * Type.t
+
+    let eq x y = x = y
+
+    let lam x body = Lam (x, body)
+
+    let var x spine = App (Var x, spine)
+
+    let con c spine = App (Con (c, None), spine)
+
+    let icon c ty spine = App (Con (c, Some ty), spine)
+
+    let rec subst e lvl = function
+        | Lam (x, body) ->
+            Lam (x, subst (shift e) (lvl + 1) body)
+        | App (Var i, spine) when i = lvl ->
+            redex e (List.map (subst e lvl) spine)
+        | App (Var i, spine) when i > lvl ->
+            App (Var (i - 1), List.map (subst e lvl) spine)
+        | App (Var i, spine) ->
+            App (Var i, List.map (subst e lvl) spine)
+        | App (Con (c, type_), spine) ->
+            App (Con (c, type_), List.map (subst e lvl) spine)
+
+    and redex e spine = match e, spine with
+        | App (head, spine'), _ ->
+            App (head, spine' @ spine)
+        | Lam (x, body), e' :: spine' ->
+            redex (subst e' 0 body) spine'
+        | Lam (x, body), [] ->
+            Lam (x, body)
+ 
+    and shift =
+        let rec shift_term lvl = function
+            | App (head, spine) ->
+                App (shift_head lvl head, shift_spine lvl spine)
+            | Lam (x, e) ->
+                Lam (x, shift_term (1 + lvl) e)
+        and shift_head lvl = function
+            | Var i when i >= lvl ->
+                Var (i + 1)
+            | Var i ->
+                Var i
+            | Con (name, type_) ->
+                Con (name, type_)
+
+        and shift_spine lvl = List.map (shift_term lvl)
+
+        in shift_term 0
 
     let check sign =
-         let rec check_term ctx term type_ = match term, type_ with
-         | Lam (x, e), Type.Arrow (a, b) ->
-             check_term (Ctx.add x a ctx) e b
-         | Lam _, Type.Atom _ ->
-             failwith "Term.check: lambda term expected function type"
-         | App (h, es), _ ->
-             if check_spine ctx (check_head ctx h) es = type_ then
-                 ()
-             else
-                 failwith "type not correct"
+        let rec check_term ctx term type_ : unit = match term, type_ with
+        | App (head, spine), _ ->
+            check_spine ctx (infer_head ctx head) spine type_
+        | Lam (x, e), Type.Arrow (a, b) ->
+            check_term (Ctx.add x a ctx) e b
+        | Lam _, Type.Atom _ ->
+            failwith "Term.check: lambda term expected function type"
 
-         and check_head ctx = function
-         | Var i ->
-             Ctx.lookup i ctx
-         | Con (c, ts) ->
-             Sign.lookup_con c ts sign
-         | Redex (e, t) ->
-             Sign.check_type sign t;
-             check_term ctx e t;
-             t
+        and infer_head ctx = function
+        | Var i -> Ctx.lookup i ctx
+        | Con (c, type_) -> Sign.lookup_con c type_ sign
 
-         and check_spine ctx a ts = match ts with
-         | [] -> a
-         | t :: rest ->
-             begin match a with
-             | Type.Arrow (a0, a1) ->
-                 check_term ctx t a0;
-                 check_spine ctx a1 rest
-             | Type.Atom _ ->
-                 failwith "atom elimiated"
-             end
+        and check_spine ctx a spine b : unit = match spine with
+        | [] ->
+           if a = b then () else failwith "check_spine"
+        | e :: spine'->
+            begin match a with
+            | Type.Arrow (a0, a1) ->
+                check_term ctx e a0;
+                check_spine ctx a1 spine' b
+            | Type.Atom _ ->
+                failwith "atom elimiated"
+            end
 
          in check_term
 
-    let shift =
-        let rec shift_term lvl = function
-            | Lam (x, e) ->
-                Lam (x, shift_term (1 + lvl) e)
-            | App (h, es) -> 
-                App (shift_head lvl h, List.map (shift_term lvl) es)
-        
-        and shift_head lvl = function
-            | Var i when i >= lvl -> Var (1 + i)
-            | Var i -> Var i
-            | Con (name, type_) -> Con (name, type_)
-            | Redex (e, type_) -> Redex (shift_term lvl e, type_)
-        in shift_term 0
-
-
-
     open Printf
     let rec to_string ctx = function
+        | App (head, spine) ->
+            let head = head_to_string ctx head in
+            let spine = List.map (arg_to_string ctx) spine in
+            String.concat " " (head :: spine)
         | Lam (x, e) ->
             sprintf "\\%s. %s" x (to_string (Ctx.add x (Type.Atom "_") ctx) e)
-        | App (head, spine) ->
-            let head_string = head_to_string ctx head in
-            let spine_strings = List.map (arg_to_string ctx) spine in 
-            String.concat " " (head_string :: spine_strings)
+
     and head_to_string ctx = function
         | Var i ->
             Ctx.name i ctx
@@ -231,9 +262,8 @@ end = struct
             name
         | Con (name, Some type_) ->
             sprintf "%s[%s]" name (Type.to_string type_)
-        | Redex (e, type_) ->
-            sprintf "(%s : %s)" (to_string ctx e) (Type.to_string type_)
     and arg_to_string ctx = function
-        | App (e, []) -> head_to_string ctx e
+        | App (head, []) ->
+            head_to_string ctx head
         | e -> sprintf "(%s)" (to_string ctx e)
 end
