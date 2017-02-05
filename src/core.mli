@@ -1,20 +1,5 @@
 open Ast
 
-module HOL : sig
-    val o   : Type.t
-    val nat : Type.t
- 
-    val _x : int -> Term.t
-
-    val _true  : Term.t
-    val _false : Term.t
-    val _and   : Term.t -> Term.t -> Term.t
-    val _or    : Term.t -> Term.t -> Term.t
-    val _imp   : Term.t -> Term.t -> Term.t
-    val _all   : string -> Type.t -> Term.t -> Term.t
-    val _ex   : string -> Type.t -> Term.t -> Term.t
-end
-
 module rec Theory : sig
     type t
     val init        : t
@@ -40,6 +25,8 @@ and Goal : sig
     val all_left    : string -> Term.t -> string -> tactic
     val ex_right    : Term.t -> tactic
     val ex_left     : string -> string -> tactic
+
+    val axiom       : tactic
 end
 
 and Proof : sig
