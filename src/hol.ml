@@ -1,6 +1,7 @@
-open Ast
 
 module HOL : sig
+    open Ast
+
     val atom : string -> Type.t
     val o : Type.t
     val nat : Type.t
@@ -17,71 +18,74 @@ module HOL : sig
     val _ex   : string -> Type.t -> Term.t -> Term.t
    
 end = struct
-    open Type
+    open Ast
+    open Ast.Type
+    open Ast.Term
 
     let atom a = Atom a
     let arr a b = Arrow (a, b)
     let o = atom "o"
     let nat = atom "nat"
 
-    let _x x = Term.App (Term.Var x, [])
+    let _x x = App (Var x, [])
     
-    let _true = Term.con "true" []
-    let _false = Term.con "false" []
-    let _and a b = Term.con "and" [a; b]
-    let _or a b = Term.con "or" [a; b]
-    let _imp a b = Term.con "imp" [a; b]
+    let _true = con (Con.Single "true") []
+    let _false = con (Con.Single "false") []
+    let _and a b = con (Con.Single "and") [a; b]
+    let _or a b = con (Con.Single "or") [a; b]
+    let _imp a b = con (Con.Single "imp") [a; b]
     let _all x ty body =
-        Term.icon "all" ty [Term.lam x body]
+        con (Con.Family ("all", ty)) [lam x body]
     let _ex x ty body =
-        Term.icon "ex" ty [Term.lam x body]
+        con (Con.Family ("ex", ty)) [lam x body]
 
 end
 
 
 module rec Theory : sig
     type t = {
-        sign     : Sign.t;
-        theorems : Term.t StringMap.t
+        sign     : Typing.Sign.t;
+        theorems : Ast.Term.t StringMap.t
     }
 
     val init : t
     val add_type : string -> t -> t
-    val add_con : string -> Type.t -> t -> t
+    val add_con : string -> Ast.Type.t -> t -> t
 
-    val check_term : t -> Ctx.t -> Term.t -> Type.t -> unit
+    val check_term : t -> Typing.Ctx.t -> Ast.Term.t -> Ast.Type.t -> unit
 
-    val prove : string -> Term.t -> t -> Proof.t
+    val prove : string -> Ast.Term.t -> t -> Proof.t
 
 end = struct
     type t = {
-        sign     : Sign.t;
-        theorems : Term.t StringMap.t
+        sign     : Typing.Sign.t;
+        theorems : Ast.Term.t StringMap.t
     }
 
     let check_term {sign} ctx e a =
-        Term.check sign ctx e a
+        Typing.Term.check sign ctx e a
 
     let add_type name theory =
-        { theory with sign = Sign.add_type name theory.sign }
+        { theory with sign = Typing.Sign.add_type name theory.sign }
 
     let add_con name typ theory =
-        { theory with sign = Sign.add_con name typ theory.sign }
+        { theory with sign = Typing.Sign.add_con name typ theory.sign }
 
     let add_icon name typ theory =
-        { theory with sign = Sign.add_icon name typ theory.sign }
+        { theory with sign = Typing.Sign.add_icon name typ theory.sign }
 
     let init = 
-        let prop = Type.Atom "o" in
-        let nat = Type.Atom "nat" in
-        let arrow a b = Type.Arrow (a, b) in
+        let prop = Ast.Type.Atom "o" in
+        let nat = Ast.Type.Atom "nat" in
+        let arrow a b = Ast.Type.Arrow (a, b) in
         let binary_connective = arrow prop (arrow prop prop) in
         let quantifier =
-            OpenType.Arrow (OpenType.Arrow (OpenType.Hole, OpenType.Atom "o"),
-                            OpenType.Atom "o")
+            Typing.OpenType.Arrow (Typing.OpenType.Arrow
+                                (Typing.OpenType.Hole, Typing.OpenType.Atom "o"),
+                             	Typing.OpenType.Atom "o")
         in
         {
-            sign = Sign.empty;
+            sign = Typing.Sign.empty;
             theorems = StringMap.empty
         }
         |> add_type "o"
@@ -97,7 +101,7 @@ end = struct
         |> add_icon "ex" quantifier
 
     let prove name goal theory =
-        check_term theory Ctx.empty goal (Type.Atom "o");
+        check_term theory Typing.Ctx.empty goal (Ast.Type.Atom "o");
         let open Proof in
         let goals = [Goal.init goal] in
         { goals; name; result = goal; theory }
@@ -109,10 +113,10 @@ and Goal : sig
 
     val display : t -> unit
 
-    val init : Term.t -> t
+    val init : Ast.Term.t -> t
 
     val assumption : string -> tactic
-    val cut        : Term.t -> string -> tactic
+    val cut        : Ast.Term.t -> string -> tactic
     val true_right : tactic
     val false_left : string -> tactic
     val and_right  : tactic
@@ -123,42 +127,42 @@ and Goal : sig
     val imp_right  : string -> tactic
     val imp_left   : string -> string -> tactic
     val all_right  : string -> tactic
-    val all_left   : string -> Term.t -> string -> tactic
-    val ex_right   : Term.t -> tactic
+    val all_left   : string -> Ast.Term.t -> string -> tactic
+    val ex_right   : Ast.Term.t -> tactic
     val ex_left    : string -> string -> tactic
 
 end = struct
     type t = {
-        ctx : Ctx.t ;
-        hyps : Term.t StringMap.t;
-        goal : Term.t
+        ctx : Typing.Ctx.t ;
+        hyps : Ast.Term.t StringMap.t;
+        goal : Ast.Term.t
     }
     type tactic = Theory.t -> t -> t list
 
     let init goal =
-        { goal; ctx = Ctx.empty; hyps = StringMap.empty }
+        { goal; ctx = Typing.Ctx.empty; hyps = StringMap.empty }
 
     let shift_hyps ({hyps} as g) =
-        let hyps = StringMap.map Term.shift hyps in
+        let hyps = StringMap.map Ast.Term.shift hyps in
         { g with hyps }
 
     let shift_conc ({goal} as g) =
-        let goal = Term.shift goal in
+        let goal = Ast.Term.shift goal in
         { g with goal }
 
     let display {ctx; hyps; goal} =
         let open Printf in
         let print_hyp name prop =
-            printf " (%s)\t %s\n" name (Term.to_string ctx prop)
+            printf " (%s)\t %s\n" name (Ast.Term.to_string prop)
         and print_var name type_ =
-            printf " %s : %s\n" name (Type.to_string type_)
+            printf " %s : %s\n" name (Ast.Type.to_string type_)
         in
-        (if not (Ctx.is_empty ctx) then printf "vars:\n");
-        Ctx.iter print_var ctx;
+        (if not (Typing.Ctx.is_empty ctx) then printf "vars:\n");
+        Typing.Ctx.iter print_var ctx;
         (if not (StringMap.is_empty hyps) then printf "hyps:\n");
         StringMap.iter print_hyp hyps;
         printf "===============================================\n";
-        printf " %s\n" (Term.to_string ctx goal)
+        printf " %s\n" (Ast.Term.to_string goal)
         
 
     (*
@@ -167,7 +171,7 @@ end = struct
      *)
     let assumption h _ {hyps; goal} =
         match StringMap.find h hyps with
-        | hyp when Term.eq goal hyp -> 
+        | hyp when Ast.Term.eq goal hyp -> 
             []
         | _ -> failwith "assumption"
 
@@ -177,17 +181,19 @@ end = struct
      * Gamma; Delta |- C
      *)
     let cut e h theory ({ctx; hyps} as g) =
-        Theory.check_term theory ctx e (Type.Atom "o");
+        Theory.check_term theory ctx e (Ast.Type.Atom "o");
         let hyps = StringMap.add h e hyps in
         [ { g with goal = e }; { g with hyps }]
 
+
+    open Ast
 
     (*
      *  -----------------
      *      |- true
      *)
     let true_right _ = function
-        | {goal = Term.App (Term.Con ("true", None), []) } ->
+        | {goal = Term.App (Term.Con (Con.Single "true"), []) } ->
             []
         | _ -> failwith "true_right"
 
@@ -197,7 +203,7 @@ end = struct
      *)
     let false_left h _ = function { hyps } ->
         begin match StringMap.find h hyps with
-        | Term.App (Term.Con ("false", None), []) ->
+        | Term.App (Term.Con (Con.Single "false"), []) ->
             []
         | _ -> failwith "false_left"
         end
@@ -207,7 +213,7 @@ end = struct
      *     |- and A B
      *)
     let and_right _ = function
-        | {goal = Term.App (Term.Con ("and", None), [a; b]) } as g ->
+        | {goal = Term.App (Term.Con (Con.Single "and"), [a; b]) } as g ->
             [ { g with goal = a }; {g with goal = b } ]
         | _ -> failwith "and_right"
 
@@ -219,7 +225,7 @@ end = struct
     let and_left h h0 h1 _ =
         function { hyps } as g ->
             begin match StringMap.find h hyps with
-            | Term.App (Term.Con ("and", None), [a; b]) ->
+            | Term.App (Term.Con (Con.Single "and"), [a; b]) ->
                 hyps
                 |> StringMap.remove h
                 |> StringMap.add h0 a
@@ -234,7 +240,7 @@ end = struct
      *      |- or A B
      *)
     let or_right_0 _ = function
-        | { goal = Term.App (Term.Con ("or", None), [a; _]) } as g ->
+        | { goal = Term.App (Term.Con (Con.Single "or"), [a; _]) } as g ->
             [ { g with goal = a } ]
         | _ -> failwith "or_right_0"
 
@@ -244,7 +250,7 @@ end = struct
      *      |- or A B
      *)
     let or_right_1 _ = function
-        | { goal = Term.App (Term.Con ("or", None), [_; b]) } as g ->
+        | { goal = Term.App (Term.Con (Con.Single "or"), [_; b]) } as g ->
             [ { g with goal = b } ]
         | _ -> failwith "or_right_1"
 
@@ -256,7 +262,7 @@ end = struct
      *)
     let or_left h h0 h1 _ = function { hyps } as g ->
         begin match StringMap.find h hyps with
-        | Term.App (Term.Con ("or", None), [a; b]) ->
+        | Term.App (Term.Con (Con.Single "or"), [a; b]) ->
             let hyps = StringMap.remove h hyps in
             [
                 { g with hyps = StringMap.add h0 a hyps };
@@ -271,7 +277,7 @@ end = struct
      *  Gamma; Delta       |- imp A B
      *)
     let imp_right h _ = function
-        | { goal = Term.App (Term.Con ("imp", None), [a; b]) } as g ->
+        | { goal = Term.App (Term.Con (Con.Single "imp"), [a; b]) } as g ->
             [ { g with goal = b; hyps = StringMap.add h a g.hyps } ]
         | _ -> failwith "imp_right"
 
@@ -283,7 +289,7 @@ end = struct
      *)
     let imp_left h h' _ = function { hyps } as g ->
         begin match StringMap.find h hyps with
-        | Term.App (Term.Con ("imp", None), [a; b]) ->
+        | Term.App (Term.Con (Con.Single "imp"), [a; b]) ->
             let hyps = StringMap.remove h hyps in
             let g = { g with hyps } in
             [ { g with goal = a }; { g with hyps = StringMap.add h' b hyps }]  
@@ -297,9 +303,9 @@ end = struct
      *   Gamma; Delta |- all x:tau. A[x]
      *)
     let all_right x _ = function
-        | { goal = Term.App (Term.Con ("all", Some typ), [body]) } as g ->
+        | { goal = Term.App (Term.Con (Con.Family ("all", typ)), [body]) } as g ->
             let goal = Term.redex (Term.shift body) [Term.var 0 []] in
-            let ctx = Ctx.add x typ g.ctx in
+            let ctx = Typing.Ctx.add x typ g.ctx in
             [ { g with goal; ctx } |> shift_hyps]
         | _ -> failwith "all_right"
 
@@ -310,7 +316,7 @@ end = struct
      *)
     let all_left h e h' theory ({ctx; hyps} as g) =
         match StringMap.find h hyps with
-        | Term.App (Term.Con ("all", Some typ), [body]) ->
+        | Term.App (Term.Con (Con.Family ("all", typ)), [body]) ->
             Theory.check_term theory ctx e typ;
             hyps
             |> StringMap.remove h
@@ -324,7 +330,7 @@ end = struct
      *  Gamma; Delta |- ex x:tau, A[x]
      *)
     let ex_right e theory = function
-        | ({ctx; goal = Term.App (Term.Con ("ex", Some typ), [body])}) as g ->
+        | ({ctx; goal = Term.App (Term.Con (Con.Family ("ex", typ)), [body])}) as g ->
             Theory.check_term theory ctx e typ;
             let goal = Term.redex body [e] in
             [ { g with goal }]
@@ -337,8 +343,8 @@ end = struct
      *)
     let ex_left h x _ {ctx; hyps; goal} =
         match StringMap.find h hyps with
-        | Term.App (Term.Con ("ex", Some typ), [body]) ->
-            let ctx = Ctx.add x typ ctx in
+        | Term.App (Term.Con (Con.Family ("ex", typ)), [body]) ->
+            let ctx = Typing.Ctx.add x typ ctx in
             let hyps = hyps |>
                        StringMap.remove h |>
                        StringMap.map Term.shift |>
@@ -353,7 +359,7 @@ and Proof : sig
     type t = {
         goals : Goal.t list;
         name  : string;
-        result : Term.t;
+        result : Ast.Term.t;
         theory : Theory.t
     }
     val apply : Goal.tactic -> t -> t
@@ -363,7 +369,7 @@ end = struct
     type t = {
         goals : Goal.t list;
         name : string;
-        result : Term.t;
+        result : Ast.Term.t;
         theory : Theory.t
     }
 
