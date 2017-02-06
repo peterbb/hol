@@ -44,6 +44,7 @@ module Term : sig
     val redex : t -> t list -> t
     val abs : string -> int -> t -> t
 
+    val mvar_subst : t -> string -> t -> t
     val shift : t -> t
 end = struct
     type t =
@@ -185,4 +186,13 @@ end = struct
         and shift_spine lvl = List.map (shift_term lvl)
 
         in shift_term 0
+
+    let mvar_subst term mvar =
+        let rec mvar_subst = function
+            | Lam (x, t) -> Lam (x, mvar_subst t)
+            | App (MVar mvar', spine) when mvar = mvar' ->
+                redex term (List.map mvar_subst spine)
+            | App (head, spine) ->
+                App (head, List.map mvar_subst spine)
+        in mvar_subst
 end

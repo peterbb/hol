@@ -1,8 +1,12 @@
 module rec Theory : sig
-    type t = {
+    type view = {
         sign     : Typing.Sign.t;
         theorems : Ast.Term.t StringMap.t
     }
+
+    type t = view
+
+    val view : t -> view
 
     val init : t
     val add_type : string -> t -> t
@@ -15,10 +19,13 @@ module rec Theory : sig
     val prove : string -> Ast.Term.t -> t -> Proof.t
 
 end = struct
-    type t = {
+    type view = {
         sign     : Typing.Sign.t;
         theorems : Ast.Term.t StringMap.t
     }
+    type t = view
+
+    let view theory = theory
 
     let check_type {sign} type_ =
         Typing.Sign.check_type sign type_
@@ -65,46 +72,72 @@ end = struct
         check_term theory Typing.MCtx.empty Typing.Ctx.empty
                    goal (Ast.Type.Atom "o");
         let open Proof in
-        let goals = [Goal.init goal] in
+        let goals = [Tactic.init goal] in
         let mCtx = Typing.MCtx.empty in
         { mCtx; goals; name; result = goal; theory }
 
 end
+
 and Goal : sig
-    type t
-    type tactic = Theory.t -> Typing.MCtx.t -> t -> t list
+    type view = {
+        ctx  : Typing.Ctx.t ;
+        hyps : Ast.Term.t StringMap.t;
+        goal : Ast.Term.t
+    }
+    type t = view
 
-    val display : t -> unit
-
-    val init : Ast.Term.t -> t
-    val ctx : t -> Typing.Ctx.t
-
-    val assumption : string -> tactic
-    val cut        : Ast.Term.t -> string -> tactic
-    val true_right : tactic
-    val false_left : string -> tactic
-    val and_right  : tactic
-    val and_left   : string -> string -> string -> tactic
-    val or_right_0 : tactic
-    val or_right_1 : tactic
-    val or_left    : string -> string -> string -> tactic
-    val imp_right  : string -> tactic
-    val imp_left   : string -> string -> tactic
-    val all_right  : string -> tactic
-    val all_left   : string -> Ast.Term.t -> string -> tactic
-    val ex_right   : Ast.Term.t -> tactic
-    val ex_left    : string -> string -> tactic
-
-    val axiom      : tactic
-
+    val view : t -> view
 end = struct
-    type t = {
+    type view = {
         ctx : Typing.Ctx.t ;
         hyps : Ast.Term.t StringMap.t;
         goal : Ast.Term.t
     }
+    type t = view
+    let view goal = goal
+end 
 
-    type tactic = Theory.t -> Typing.MCtx.t -> t -> t list
+and Tactic : sig
+    type view = Theory.view -> Typing.MCtx.t -> Goal.view -> Goal.view list
+    type t = view
+
+    val view : t -> view
+    val display : Goal.t -> unit
+
+    val mvar_subst : Ast.Term.t -> string -> Goal.t -> Goal.t
+
+    val init : Ast.Term.t -> Goal.t
+    val ctx : Goal.t -> Typing.Ctx.t
+
+    val assumption : string -> t
+    val cut        : Ast.Term.t -> string -> t
+    val true_right : t
+    val false_left : string -> t
+    val and_right  : t
+    val and_left   : string -> string -> string -> t
+    val or_right_0 : t
+    val or_right_1 : t
+    val or_left    : string -> string -> string -> t
+    val imp_right  : string -> t
+    val imp_left   : string -> string -> t
+    val all_right  : string -> t
+    val all_left   : string -> Ast.Term.t -> string -> t
+    val ex_right   : Ast.Term.t -> t
+    val ex_left    : string -> string -> t
+
+    val axiom      : t
+end = struct
+    type view = Theory.view -> Typing.MCtx.t -> Goal.view -> Goal.view list
+    type t = view
+ 
+    let view tactic = tactic
+
+    open Goal
+
+    let mvar_subst term mvar ({hyps; goal} as g) =
+        let goal = Ast.Term.mvar_subst term mvar goal in
+        let hyps = StringMap.map (Ast.Term.mvar_subst term mvar) hyps in
+        { g with goal; hyps }
 
     let init goal =
         let ctx = Typing.Ctx.empty in
@@ -330,31 +363,49 @@ end = struct
 
 end
 and Proof : sig
-    type t = {
+    type view = {
         mCtx : Typing.MCtx.t;
-        goals : Goal.t list;
+        goals : Goal.view list;
         name  : string;
         result : Ast.Term.t;
-        theory : Theory.t
+        theory : Theory.view
     }
-    val apply : Goal.tactic -> t -> t
+    type t = view
+
+    val view : t -> view
+
+    val apply : Tactic.t -> t -> t
     val qed : t -> Theory.t
     val mvar : string -> Ast.Type.t -> t -> t
+    val set_mvar : string -> Ast.Term.t -> t -> t
     val status : t -> t
     val ctx : int -> t -> Typing.Ctx.t
 end = struct
-    type t = {
+    type view = {
         mCtx : Typing.MCtx.t;
-        goals : Goal.t list;
+        goals : Goal.view list;
         name : string;
         result : Ast.Term.t;
-        theory : Theory.t
+        theory : Theory.view
     }
+    type t = view
+
+    let view proof = proof
 
     let mvar name typ ({theory; mCtx} as proof) =
         Theory.check_type theory typ;
         let mCtx = Typing.MCtx.add name typ mCtx in
         { proof with mCtx }
+
+    let set_mvar mvar term ({theory; mCtx; goals} as proof) =
+        match Typing.MCtx.lookup mvar mCtx with
+        | typ ->
+            let mCtx = Typing.MCtx.remove mvar mCtx in
+            Theory.check_term theory mCtx Typing.Ctx.empty term typ;
+            let goals = List.map (Tactic.mvar_subst term mvar) goals in
+            { proof with mCtx; goals }
+        | exception Not_found ->
+            failwith ("set_mvar: no mvar named" ^ mvar)
 
     let apply f = function
         | { mCtx; goals = g :: gs; theory } as proof ->
@@ -375,7 +426,7 @@ end = struct
     let status ({mCtx; goals} as proof)=
         let open Printf in
         let open Proof in
-        let open Goal in
+        let open Tactic in
         printf "\n\n";
         printf "Meta variables:\n";
         Typing.MCtx.iter
@@ -385,13 +436,13 @@ end = struct
         | [] -> printf "No goals left.\n"
         | [g] ->
             printf "One goal left.\n";
-            Goal.display g
+            Tactic.display g
         | g :: _ ->
             printf "%n goals left.\n" (List.length goals);
-            Goal.display g
+            Tactic.display g
         end; 
         proof
 
-    let ctx i {goals} = Goal.ctx (List.nth goals i)
+    let ctx i {goals} = Tactic.ctx (List.nth goals i)
 end
 
