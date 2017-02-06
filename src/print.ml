@@ -32,6 +32,8 @@ and head_to_string ctx = function
         Typing.Ctx.name i ctx
     | Con c ->
         sprintf "%s" (con_to_string c)
+    | MVar m ->
+        sprintf "?%s" m
 and arg_to_string ctx = function
     | App (head, []) ->
         head_to_string ctx head

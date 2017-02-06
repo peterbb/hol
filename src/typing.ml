@@ -27,7 +27,6 @@ end = struct
         in check
 end
 
-
 module OpenType : sig
     type t = 
         | Hole
@@ -61,6 +60,51 @@ end = struct
         | Atom x -> Ast.Type.Atom x
         | Arrow (a, b) -> Ast.Type.Arrow (fill a, fill b)
         in fill
+end
+
+module Ctx : sig
+    type t
+    val empty : t
+    val add : string -> Ast.Type.t -> t -> t
+    val lookup : int -> t -> Ast.Type.t
+    val name : int -> t -> string
+    val is_empty : t -> bool
+    val iter : (string -> Ast.Type.t -> unit) -> t -> unit
+    val names : t -> string list
+end = struct
+    type t = (string * Ast.Type.t) list
+
+    let empty = []
+    let add var type_ ctx = (var, type_) :: ctx
+    let lookup var ctx =
+        try snd (List.nth ctx var) with
+        | Not_found -> failwith "Ctx.lookup: invalid deBruijn index"
+    let name var ctx =
+        try fst (List.nth ctx var) with
+        | Not_found -> failwith "Ctx.name: invalid deBruijn index"
+    let is_empty ctx = ctx = []
+    let iter f = List.iter (fun (x, y) -> f x y)
+    let names = List.map fst
+end
+
+module MCtx : sig
+    type t
+    val empty : t
+    val add : string -> Ast.Type.t -> t -> t
+    val lookup : string -> t -> Ast.Type.t
+    val remove : string -> t -> t
+    val is_empty : t -> bool
+    val iter : (string -> Ast.Type.t -> unit) -> t -> unit
+end = struct
+    type t = Ast.Type.t StringMap.t
+    let empty = StringMap.empty
+    let add = StringMap.add_unique
+    let lookup mvar mCtx = 
+        try StringMap.find mvar mCtx with
+        | Not_found -> failwith "MCtx.lookup: not defined"
+    let remove = StringMap.remove
+    let is_empty = StringMap.is_empty
+    let iter = StringMap.iter
 end
 
 module Sign : sig
@@ -110,34 +154,19 @@ end = struct
         | Open a, Some b -> OpenType.fill b a
         | Closed _, Some _ -> failwith "constant not parametric"
         | Open _, None  -> failwith "constant expect type parameter"
+        | exception Not_found ->
+            "Sign.lookup_con: not found:" ^ (Ast.Con.name c) |> failwith
 end
 
-module Ctx : sig
-    type t
-    val empty : t
-    val add : string -> Ast.Type.t -> t -> t
-    val lookup : int -> t -> Ast.Type.t
-    val name : int -> t -> string
-    val is_empty : t -> bool
-    val iter : (string -> Ast.Type.t -> unit) -> t -> unit
-end = struct
-    type t = (string * Ast.Type.t) list
-
-    let empty = []
-    let add var type_ ctx = (var, type_) :: ctx
-    let lookup var ctx = snd (List.nth ctx var)
-    let name var ctx = fst (List.nth ctx var)
-    let is_empty ctx = ctx = []
-    let iter f = List.iter (fun (x, y) -> f x y)
-end
 
 
 module Term : sig
-    val check : Sign.t -> Ctx.t -> Ast.Term.t -> Ast.Type.t -> unit
+    val check : Sign.t -> MCtx.t -> Ctx.t
+                -> Ast.Term.t -> Ast.Type.t -> unit
 end = struct
     open Ast.Term
     open Ast.Type
-    let check sign =
+    let check sign mCtx =
         let rec check_term ctx term type_ : unit = match term, type_ with
         | App (head, spine), _ ->
             check_spine ctx (infer_head ctx head) spine type_
@@ -149,6 +178,7 @@ end = struct
         and infer_head ctx = function
         | Var i -> Ctx.lookup i ctx
         | Con c -> Sign.lookup_con c sign
+        | MVar m -> MCtx.lookup m mCtx
 
         and check_spine ctx a spine b : unit = match spine with
         | [] ->

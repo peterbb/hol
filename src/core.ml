@@ -8,7 +8,9 @@ module rec Theory : sig
     val add_type : string -> t -> t
     val add_con : string -> Ast.Type.t -> t -> t
 
-    val check_term : t -> Typing.Ctx.t -> Ast.Term.t -> Ast.Type.t -> unit
+    val check_type : t -> Ast.Type.t -> unit
+    val check_term : t -> Typing.MCtx.t -> Typing.Ctx.t ->
+                     Ast.Term.t -> Ast.Type.t -> unit
 
     val prove : string -> Ast.Term.t -> t -> Proof.t
 
@@ -18,8 +20,11 @@ end = struct
         theorems : Ast.Term.t StringMap.t
     }
 
-    let check_term {sign} ctx e a =
-        Typing.Term.check sign ctx e a
+    let check_type {sign} type_ =
+        Typing.Sign.check_type sign type_
+
+    let check_term {sign} mCtx ctx e a =
+        Typing.Term.check sign mCtx ctx e a
 
     let add_type name theory =
         { theory with sign = Typing.Sign.add_type name theory.sign }
@@ -57,19 +62,22 @@ end = struct
         |> add_icon "ex" quantifier
 
     let prove name goal theory =
-        check_term theory Typing.Ctx.empty goal (Ast.Type.Atom "o");
+        check_term theory Typing.MCtx.empty Typing.Ctx.empty
+                   goal (Ast.Type.Atom "o");
         let open Proof in
         let goals = [Goal.init goal] in
-        { goals; name; result = goal; theory }
+        let mCtx = Typing.MCtx.empty in
+        { mCtx; goals; name; result = goal; theory }
 
 end
 and Goal : sig
     type t
-    type tactic = Theory.t -> t -> t list
+    type tactic = Theory.t -> Typing.MCtx.t -> t -> t list
 
     val display : t -> unit
 
     val init : Ast.Term.t -> t
+    val ctx : t -> Typing.Ctx.t
 
     val assumption : string -> tactic
     val cut        : Ast.Term.t -> string -> tactic
@@ -95,18 +103,23 @@ end = struct
         hyps : Ast.Term.t StringMap.t;
         goal : Ast.Term.t
     }
-    type tactic = Theory.t -> t -> t list
+
+    type tactic = Theory.t -> Typing.MCtx.t -> t -> t list
 
     let init goal =
-        { goal; ctx = Typing.Ctx.empty; hyps = StringMap.empty }
+        let ctx = Typing.Ctx.empty in
+        { goal; ctx; hyps = StringMap.empty }
 
-    let shift_hyps ({hyps} as g) =
-        let hyps = StringMap.map Ast.Term.shift hyps in
-        { g with hyps }
 
-    let shift_conc ({goal} as g) =
-        let goal = Ast.Term.shift goal in
-        { g with goal }
+    let lookup_hyp h theory hyps =
+        try StringMap.find h hyps with
+        | Not_found -> begin
+            try StringMap.find h theory.Theory.theorems with
+            | Not_found -> failwith ("unknown hyp" ^ h)
+        end
+
+    let ctx {ctx} = ctx
+            
 
     let display {ctx; hyps; goal} =
         let open Printf in
@@ -127,8 +140,8 @@ end = struct
      * ----------------------------------------
      *   Gamma; Delta, h: A |- A
      *)
-    let assumption h _ {hyps; goal} =
-        match StringMap.find h hyps with
+    let assumption h theory _ {hyps; goal} =
+        match lookup_hyp h theory hyps with
         | hyp when Ast.Term.eq goal hyp -> 
             []
         | _ -> failwith "assumption"
@@ -138,8 +151,8 @@ end = struct
      * ----------------------------------------------
      * Gamma; Delta |- C
      *)
-    let cut e h theory ({ctx; hyps} as g) =
-        Theory.check_term theory ctx e (Ast.Type.Atom "o");
+    let cut e h theory mCtx ({ctx; hyps} as g) =
+        Theory.check_term theory mCtx ctx e (Ast.Type.Atom "o");
         let hyps = StringMap.add h e hyps in
         [ { g with goal = e }; { g with hyps }]
 
@@ -150,7 +163,7 @@ end = struct
      *  -----------------
      *      |- true
      *)
-    let true_right _ = function
+    let true_right _ _ = function
         | {goal = Term.App (Term.Con (Con.Single "true"), []) } ->
             []
         | _ -> failwith "true_right"
@@ -159,8 +172,8 @@ end = struct
      *  --------------------
      *    h:false |-
      *)
-    let false_left h _ = function { hyps } ->
-        begin match StringMap.find h hyps with
+    let false_left h theory _ = function { hyps } ->
+        begin match lookup_hyp h theory hyps with
         | Term.App (Term.Con (Con.Single "false"), []) ->
             []
         | _ -> failwith "false_left"
@@ -170,7 +183,7 @@ end = struct
      *  ----------------
      *     |- and A B
      *)
-    let and_right _ = function
+    let and_right _ _ = function
         | {goal = Term.App (Term.Con (Con.Single "and"), [a; b]) } as g ->
             [ { g with goal = a }; {g with goal = b } ]
         | _ -> failwith "and_right"
@@ -180,9 +193,9 @@ end = struct
      * ----------------------
      *  h: and A B |-
      *)
-    let and_left h h0 h1 _ =
+    let and_left h h0 h1 theory _ =
         function { hyps } as g ->
-            begin match StringMap.find h hyps with
+            begin match lookup_hyp h theory hyps with
             | Term.App (Term.Con (Con.Single "and"), [a; b]) ->
                 hyps
                 |> StringMap.remove h
@@ -197,7 +210,7 @@ end = struct
      * ----------------------
      *      |- or A B
      *)
-    let or_right_0 _ = function
+    let or_right_0 _ _ = function
         | { goal = Term.App (Term.Con (Con.Single "or"), [a; _]) } as g ->
             [ { g with goal = a } ]
         | _ -> failwith "or_right_0"
@@ -207,7 +220,7 @@ end = struct
      * -------------------
      *      |- or A B
      *)
-    let or_right_1 _ = function
+    let or_right_1 _ _ = function
         | { goal = Term.App (Term.Con (Con.Single "or"), [_; b]) } as g ->
             [ { g with goal = b } ]
         | _ -> failwith "or_right_1"
@@ -218,8 +231,8 @@ end = struct
      * ---------------------------------------------------------
      *   h: or A B |- C
      *)
-    let or_left h h0 h1 _ = function { hyps } as g ->
-        begin match StringMap.find h hyps with
+    let or_left h h0 h1 theory _ = function { hyps } as g ->
+        begin match lookup_hyp h theory hyps with
         | Term.App (Term.Con (Con.Single "or"), [a; b]) ->
             let hyps = StringMap.remove h hyps in
             [
@@ -234,7 +247,7 @@ end = struct
      * ----------------------------------
      *  Gamma; Delta       |- imp A B
      *)
-    let imp_right h _ = function
+    let imp_right h _ _ = function
         | { goal = Term.App (Term.Con (Con.Single "imp"), [a; b]) } as g ->
             [ { g with goal = b; hyps = StringMap.add h a g.hyps } ]
         | _ -> failwith "imp_right"
@@ -245,8 +258,8 @@ end = struct
      * --------------------------------------------------
      *  Gamma; Delta, h: imp A B |- C
      *)
-    let imp_left h h' _ = function { hyps } as g ->
-        begin match StringMap.find h hyps with
+    let imp_left h h' theory _ = function { hyps } as g ->
+        begin match lookup_hyp h theory hyps with
         | Term.App (Term.Con (Con.Single "imp"), [a; b]) ->
             let hyps = StringMap.remove h hyps in
             let g = { g with hyps } in
@@ -260,11 +273,12 @@ end = struct
      * --------------------------------------
      *   Gamma; Delta |- all x:tau. A[x]
      *)
-    let all_right x _ = function
-        | { goal = Term.App (Term.Con (Con.Family ("all", typ)), [body]) } as g ->
+    let all_right x _ _ = function
+        | { hyps; goal = Term.App (Term.Con (Con.Family ("all", typ)), [body]) } as g ->
             let goal = Term.redex (Term.shift body) [Term.var 0 []] in
             let ctx = Typing.Ctx.add x typ g.ctx in
-            [ { g with goal; ctx } |> shift_hyps]
+            let hyps = StringMap.map Term.shift hyps in
+            [ { ctx; hyps; goal }]
         | _ -> failwith "all_right"
 
     (*
@@ -272,10 +286,10 @@ end = struct
      * -------------------------------------------------------
      *    Gamma; Delta, h: all x:tau. A[x] |- C
      *)
-    let all_left h e h' theory ({ctx; hyps} as g) =
-        match StringMap.find h hyps with
+    let all_left h e h' theory mCtx ({ctx; hyps} as g) =
+        match lookup_hyp h theory hyps with
         | Term.App (Term.Con (Con.Family ("all", typ)), [body]) ->
-            Theory.check_term theory ctx e typ;
+            Theory.check_term theory mCtx ctx e typ;
             hyps
             |> StringMap.remove h
             |> StringMap.add h' (Term.redex body [e])
@@ -287,9 +301,9 @@ end = struct
      * ---------------------------------------------
      *  Gamma; Delta |- ex x:tau, A[x]
      *)
-    let ex_right e theory = function
+    let ex_right e theory mCtx = function
         | ({ctx; goal = Term.App (Term.Con (Con.Family ("ex", typ)), [body])}) as g ->
-            Theory.check_term theory ctx e typ;
+            Theory.check_term theory mCtx ctx e typ;
             let goal = Term.redex body [e] in
             [ { g with goal }]
         | _ -> failwith "ex_right"
@@ -299,8 +313,8 @@ end = struct
      * ------------------------------------------
      *  Gamma; Delta, h: ex x:tau, A[x] |- C
      *)
-    let ex_left h x _ {ctx; hyps; goal} =
-        match StringMap.find h hyps with
+    let ex_left h x theory _ {ctx; hyps; goal}=
+        match lookup_hyp h theory hyps with
         | Term.App (Term.Con (Con.Family ("ex", typ)), [body]) ->
             let ctx = Typing.Ctx.add x typ ctx in
             let hyps = hyps |>
@@ -312,11 +326,12 @@ end = struct
             [{ ctx; hyps; goal }]
         | _ -> failwith "ex_left"
 
-    let axiom _ _ = []
+    let axiom _ _ _ = []
 
 end
 and Proof : sig
     type t = {
+        mCtx : Typing.MCtx.t;
         goals : Goal.t list;
         name  : string;
         result : Ast.Term.t;
@@ -324,35 +339,48 @@ and Proof : sig
     }
     val apply : Goal.tactic -> t -> t
     val qed : t -> Theory.t
+    val mvar : string -> Ast.Type.t -> t -> t
     val status : t -> t
+    val ctx : int -> t -> Typing.Ctx.t
 end = struct
     type t = {
+        mCtx : Typing.MCtx.t;
         goals : Goal.t list;
         name : string;
         result : Ast.Term.t;
         theory : Theory.t
     }
 
+    let mvar name typ ({theory; mCtx} as proof) =
+        Theory.check_type theory typ;
+        let mCtx = Typing.MCtx.add name typ mCtx in
+        { proof with mCtx }
+
     let apply f = function
-        | { goals = g :: gs; theory } as proof ->
-            { proof with goals = (f theory g) @ gs }
+        | { mCtx; goals = g :: gs; theory } as proof ->
+            { proof with goals = (f theory mCtx g) @ gs }
         | { goals = [] } ->
             failwith "apply: no goals"
 
     let qed proof = 
         let open Theory in
         match proof with
-        | { goals = []; name; result; theory } ->
+        | { mCtx; goals = []; name; result; theory }
+              when Typing.MCtx.is_empty mCtx ->
           let theorems = StringMap.add_unique name result theory.theorems in
           { theory with theorems = theorems }
         | _ ->
-          failwith "qed: still goals left"
+          failwith "qed: still unresolved goals/meta variables"
 
-    let status ({goals} as proof)=
+    let status ({mCtx; goals} as proof)=
         let open Printf in
         let open Proof in
         let open Goal in
         printf "\n\n";
+        printf "Meta variables:\n";
+        Typing.MCtx.iter
+            (fun k t -> printf " ?%s : %s\n" k (Print.type_to_string t))
+            mCtx;
         begin match goals with
         | [] -> printf "No goals left.\n"
         | [g] ->
@@ -363,5 +391,7 @@ end = struct
             Goal.display g
         end; 
         proof
+
+    let ctx i {goals} = Goal.ctx (List.nth goals i)
 end
 

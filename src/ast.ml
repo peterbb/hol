@@ -34,6 +34,7 @@ module Term : sig
     and head =
         | Var   of int
         | Con   of Con.t
+        | MVar  of string
 
     val eq : t -> t -> bool
 
@@ -41,6 +42,7 @@ module Term : sig
     val var : int -> t list -> t
     val con : Con.t -> t list -> t
     val redex : t -> t list -> t
+    val abs : string -> t -> t
 
     val shift : t -> t
 end = struct
@@ -50,6 +52,7 @@ end = struct
     and head =
         | Var   of int
         | Con   of Con.t
+        | MVar  of string
 
     let eq x y = x = y
 
@@ -58,6 +61,20 @@ end = struct
     let var x spine = App (Var x, spine)
 
     let con c spine = App (Con c, spine)
+
+    let rec abs x =
+        let rec abs i = function
+            | Lam (y, t) ->
+                Lam (y, abs (i + 1) t)
+            | App (h, s) ->
+                App (abs_head i h, List.map (abs i) s)
+        and abs_head i = function
+            | Var j -> Var j
+            | Con (Con.Single y) when x = y -> Var i
+            | Con (Con.Family (y, _)) when x = y ->
+                failwith "Term.abs: abstracting indexed constants" 
+            | (Con _ | MVar _) as h -> h
+        in abs 0
 
     (* [subst e lvl f] is:
      *
@@ -119,6 +136,8 @@ end = struct
             App (Var i, List.map (subst e lvl) spine)
         | App (Con c, spine) ->
             App (Con c, List.map (subst e lvl) spine)
+        | App (MVar m, spine) ->
+            App (MVar m, List.map (subst e lvl) spine)
 
     and redex e spine = match e, spine with
         (* (x @ s) @ s'  ->   x @ (s @ s') *)
@@ -158,12 +177,10 @@ end = struct
              *  ------------------------------------
              *    G * G' * D  : shift (G+1+G') (Var G)
              *)
-            | Var i when i < lvl ->
-                Var i
-            | Var i ->
-                Var (i + 1)
-            | Con c ->
-                Con c
+            | Var i when i < lvl -> Var i
+            | Var i -> Var (i + 1)
+            | Con c -> Con c
+            | MVar m -> MVar m
 
         and shift_spine lvl = List.map (shift_term lvl)
 
