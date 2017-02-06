@@ -5,8 +5,10 @@ let parse_type text =
 
 let parse_term ctx text =
     let term = Parser.term Lexer.token (Lexing.from_string text) in
-    let abs term var = Ast.Term.abs var term in
-    List.fold_left abs term (Typing.Ctx.names ctx)
+    let rec abs i term = function
+        | [] -> term
+        | x :: ctx -> abs (i+1) (Ast.Term.abs x i term) ctx
+    in abs 0 term (Typing.Ctx.names ctx)
 
 type theory = Theory.t
 type proof = Proof.t

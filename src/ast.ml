@@ -42,7 +42,7 @@ module Term : sig
     val var : int -> t list -> t
     val con : Con.t -> t list -> t
     val redex : t -> t list -> t
-    val abs : string -> t -> t
+    val abs : string -> int -> t -> t
 
     val shift : t -> t
 end = struct
@@ -74,7 +74,7 @@ end = struct
             | Con (Con.Family (y, _)) when x = y ->
                 failwith "Term.abs: abstracting indexed constants" 
             | (Con _ | MVar _) as h -> h
-        in abs 0
+        in abs
 
     (* [subst e lvl f] is:
      *

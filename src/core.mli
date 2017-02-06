@@ -32,8 +32,10 @@ end
 and Proof : sig
     type t
     val apply   : Goal.tactic -> t -> t
+    val mvar    : string -> Type.t -> t -> t
     val qed     : t -> Theory.t
     val status  : t -> t
+    val ctx     : int -> t -> Typing.Ctx.t
 end
 
 

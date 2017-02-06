@@ -7,26 +7,20 @@ let sym = '_' | '-'
 
 let name = letter (sym | diglet)*
 
-rule type_token = parse
-    | [' ' '\t' '\n']+          { type_token lexbuf }
+rule token = parse
+    | [' ' '\t' '\n']+          { token lexbuf }
     | "->"                      { ARROW }
-    | '('                       { LPAR }
-    | ')'                       { RPAR }
-    | name                      { NAME (Lexing.lexeme lexbuf) }
-    | eof                       { EOF }
-
-and term_token = parse
-    | [' ' '\t' '\n']+          { term_token lexbuf }
     | "=>"                      { IMP }
     | "and"                     { AND }
     | "or"                      { OR }
+    | "all"                     { ALL }
+    | "ex"                      { EX }
     | '('                       { LPAR }
     | ')'                       { RPAR }
     | '.'                       { DOT }
     | ':'                       { COLON }
     | '\\'                      { BACKSLASH }
-    | "all"                     { ALL }
-    | "ex"                      { EX }
-    | name                      { NAME (Lexing.lexeme lexbuf) }
+    | (name as name)            { NAME name }
+    | '?' (name as name)        { QNAME name }
     | eof                       { EOF }
 

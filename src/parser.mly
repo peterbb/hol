@@ -1,4 +1,4 @@
-%token <string> NAME
+%token <string> NAME QNAME
 %token ALL EX IMP AND OR
 %token LPAR RPAR
 %token BACKSLASH DOT COLON
@@ -7,24 +7,6 @@
 
 %{
     open Ast
-
-    let abs x =
-        let open Term in
-        let rec abs lvl = function
-            | Lam (y, t) ->
-                Lam (y, abs (lvl + 1) t)
-            | App (h, s) ->
-                App (abs_head lvl h, List.map (abs lvl) s)
-        and abs_head lvl = function
-            | Var i -> Var i
-            | Con (Con.Single y) when x = y ->
-                Var lvl
-            | Con (Con.Family (y, _)) when x = y ->
-                failwith "abs"
-            | Con _ as c ->
-                c
-    in abs 0
-                
 %}
 
 %start <Ast.Term.t> term
@@ -42,11 +24,11 @@ term0:
     | t0=term1 IMP t1=term0
         { Term.App (Term.Con (Con.Single "imp"), [t0; t1]) }
     | BACKSLASH x = NAME DOT t = term0
-        { Term.Lam (x, abs x t) }
+        { Term.Lam (x, Term.abs x 0 t) }
     | ALL x=NAME COLON t=typ0 DOT b=term0
-        { Term.App (Term.Con (Con.Family ("all", t)), [Term.Lam (x, abs x b)]) }
+        { Term.App (Term.Con (Con.Family ("all", t)), [Term.Lam (x, Term.abs x 0 b)]) }
     | EX x=NAME COLON t=typ0 DOT b=term0
-        { Term.App (Term.Con (Con.Family ("ex", t)), [Term.Lam (x, abs x b)]) }
+        { Term.App (Term.Con (Con.Family ("ex", t)), [Term.Lam (x, Term.abs x 0 b)]) }
 
 term1:
     | t=term2
@@ -61,8 +43,12 @@ term2:
         { Term.App (Term.Con (Con.Single "and"), [t0; t1]) }
 
 term3:
+    | name=QNAME spine=list(arg)
+        { Term.App (Term.MVar name, spine) }
     | name=NAME spine=list(arg)
         { Term.App (Term.Con (Con.Single name), spine) }
+    | LPAR t=term0 RPAR
+        { t }
 
 arg:
    | name=NAME

@@ -115,7 +115,7 @@ end = struct
         try StringMap.find h hyps with
         | Not_found -> begin
             try StringMap.find h theory.Theory.theorems with
-            | Not_found -> failwith ("unknown hyp" ^ h)
+            | Not_found -> failwith ("unknown hyp " ^ h)
         end
 
     let ctx {ctx} = ctx
@@ -124,7 +124,7 @@ end = struct
     let display {ctx; hyps; goal} =
         let open Printf in
         let print_hyp name prop =
-            printf " (%s)\t %s\n" name (Print.term_to_string ctx prop)
+            printf " %s : %s\n" name (Print.term_to_string ctx prop)
         and print_var name type_ =
             printf " %s : %s\n" name (Print.type_to_string type_)
         in
