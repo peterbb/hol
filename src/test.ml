@@ -2,10 +2,13 @@ open Easyhol
 
 let _ =
     init
-    |> add_con "eq" "nat -> nat -> o"
-    |> add_con "lt" "nat -> nat -> o"
+    |> add_type "nat"
+    |> add_con "zero" "nat"
+    |> add_con "succ" "nat -> nat"
     |> add_con "plus" "nat -> nat -> nat"
     |> add_con "mult" "nat -> nat -> nat"
+    |> add_con "eq" "nat -> nat -> o"
+    |> add_con "lt" "nat -> nat -> o"
 
 	|> axiom "eq-sub"
 		"all n:nat. all m:nat. all p: nat -> o. eq n m and p n => p m"

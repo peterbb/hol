@@ -1,20 +1,19 @@
 open Printf
 
-let rec type_to_string = function
-    | Type.Atom s -> s
-    | Type.Arrow (Atom s, b) ->
-        sprintf "%s -> %s" s (type_to_string b)
-    | Type.Arrow (a, b) ->
-        sprintf "(%s) -> %s" (type_to_string a) (type_to_string b)
-
+open Type
 open Term.Con
+open Term
+
+let rec type_to_string = function
+    | Atom s -> s
+    | Arrow (Atom s, b) ->
+        sprintf "%s -> %s" s (type_to_string b)
+    | Arrow (a, b) ->
+        sprintf "(%s) -> %s" (type_to_string a) (type_to_string b)
 
 let con_to_string = function
     | Single c -> c
     | Family (c, t) -> sprintf "%s[%s]" c (type_to_string t)
-
-
-open Term
 
 let rec term_to_string ctx = function
     | App (head, spine) ->

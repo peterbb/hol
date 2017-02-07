@@ -44,7 +44,6 @@ end = struct
 
     let init = 
         let prop = Type.Atom "o" in
-        let nat = Type.Atom "nat" in
         let arrow a b = Type.Arrow (a, b) in
         let binary_connective = arrow prop (arrow prop prop) in
         let quantifier =
@@ -57,9 +56,6 @@ end = struct
             theorems = StringMap.empty
         }
         |> add_type "o"
-        |> add_type "nat"
-        |> add_con "zero" nat
-        |> add_con "succ" (arrow nat nat)
         |> add_con "true" prop
         |> add_con "false" prop
         |> add_con "and" binary_connective
