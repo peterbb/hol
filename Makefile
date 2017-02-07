@@ -3,17 +3,17 @@ TARGET=test
 OCBFLAGS= -use-menhir
 OCB= ocamlbuild ${OCBFLAGS}
 
-.PHONY: core
+.PHONY: core byte run clean
 
-default: core
+default: run
 
 core:
 	${OCB} core/core.cma
 
-byte:
+${TARGET}.byte: core
 	${OCB} src/${TARGET}.byte
 
-run: byte
+run: ${TARGET}.byte
 	ocamlrun ${TARGET}.byte
 
 clean:
