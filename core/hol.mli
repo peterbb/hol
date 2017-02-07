@@ -41,8 +41,6 @@ and Proof : sig
         theory : Theory.view
     }
     val view : t -> view
-
-    val status   : t -> t (* XXX: To be moved out of core. *)
 end
 
 and Tactic : sig

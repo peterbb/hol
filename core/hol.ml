@@ -102,12 +102,10 @@ and Tactic : sig
     type t = view
 
     val view : t -> view
-    val display : Goal.t -> unit
 
     val mvar_subst : Ast.Term.t -> string -> Goal.t -> Goal.t
 
     val init : Ast.Term.t -> Goal.t
-    val ctx : Goal.t -> Typing.Ctx.t
 
     val assumption : string -> t
     val cut        : Ast.Term.t -> string -> t
@@ -150,24 +148,6 @@ end = struct
             try StringMap.find h theory.Theory.theorems with
             | Not_found -> failwith ("unknown hyp " ^ h)
         end
-
-    let ctx {ctx} = ctx
-            
-
-    let display {ctx; hyps; goal} =
-        let open Printf in
-        let print_hyp name prop =
-            printf " %s : %s\n" name (Print.term_to_string ctx prop)
-        and print_var name type_ =
-            printf " %s : %s\n" name (Print.type_to_string type_)
-        in
-        (if not (Typing.Ctx.is_empty ctx) then printf "vars:\n");
-        Typing.Ctx.iter print_var ctx;
-        (if not (StringMap.is_empty hyps) then printf "hyps:\n");
-        StringMap.iter print_hyp hyps;
-        printf "===============================================\n";
-        printf " %s\n" (Print.term_to_string ctx goal)
-        
 
     (*
      * ----------------------------------------
@@ -378,7 +358,6 @@ and Proof : sig
     val qed : t -> Theory.t
     val mvar : string -> Ast.Type.t -> t -> t
     val set_mvar : string -> Ast.Term.t -> t -> t
-    val status : t -> t
 end = struct
     type view = {
         mCtx : Typing.MCtx.t;
@@ -421,25 +400,5 @@ end = struct
           { theory with theorems = theorems }
         | _ ->
           failwith "qed: still unresolved goals/meta variables"
-
-    let status ({mCtx; goals} as proof)=
-        let open Printf in
-        let open Proof in
-        let open Tactic in
-        printf "\n\n";
-        printf "Meta variables:\n";
-        Typing.MCtx.iter
-            (fun k t -> printf " ?%s : %s\n" k (Print.type_to_string t))
-            mCtx;
-        begin match goals with
-        | [] -> printf "No goals left.\n"
-        | [g] ->
-            printf "One goal left.\n";
-            Tactic.display g
-        | g :: _ ->
-            printf "%n goals left.\n" (List.length goals);
-            Tactic.display g
-        end; 
-        proof
 end
 

@@ -3,5 +3,4 @@ StringSet
 StringMap
 Ast
 Typing
-Print
 Hol

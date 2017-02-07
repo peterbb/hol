@@ -27,8 +27,6 @@ let prove name prop =
 
 let qed = Proof.qed
 
-let status = Proof.status
-
 let assumption h =
     Proof.apply (Tactic.assumption h)
 
@@ -116,4 +114,42 @@ let rec elim h0 h1 =
     | start :: rest -> fun proof ->
         proof |> elim_single h0 h1 start |> elim_list rest
         
+
+let display_goal goal =
+    let open Goal in
+    let {ctx; hyps; goal} = goal in
+    let open Printf in
+    let print_hyp name prop =
+        printf " %s : %s\n" name (Print.term_to_string ctx prop)
+    and print_var name type_ =
+        printf " %s : %s\n" name (Print.type_to_string type_)
+    in
+    (if not (Typing.Ctx.is_empty ctx) then printf "vars:\n");
+    Typing.Ctx.iter print_var ctx;
+    (if not (StringMap.is_empty hyps) then printf "hyps:\n");
+    StringMap.iter print_hyp hyps;
+    printf "===============================================\n";
+    printf " %s\n" (Print.term_to_string ctx goal)
+
+
+let status proof =
+    let open Printf in
+    let open Proof in
+    let open Tactic in
+    let {mCtx; goals} = Proof.view proof in
+    printf "\n\n";
+    printf "Meta variables:\n";
+    Typing.MCtx.iter
+        (fun k t -> printf " ?%s : %s\n" k (Print.type_to_string t))
+        mCtx;
+    begin match goals with
+    | [] -> printf "No goals left.\n"
+    | [g] ->
+        printf "One goal left.\n";
+        display_goal g
+    | g :: _ ->
+        printf "%n goals left.\n" (List.length goals);
+        display_goal g
+    end;
+    proof
 
