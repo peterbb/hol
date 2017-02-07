@@ -1,0 +1,3 @@
+
+<src/test.byte>: use_core
+"core": include

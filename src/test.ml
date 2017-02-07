@@ -1,4 +1,4 @@
-open Hol
+open Easyhol
 
 let _ =
     init

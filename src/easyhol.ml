@@ -1,4 +1,4 @@
-open Core
+open Hol
 
 let parse_type text =
     Parser.typ Lexer.token (Lexing.from_string text)
