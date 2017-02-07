@@ -1,9 +1,19 @@
 
 TARGET=test
-OCAMLBUILDFLAGS= -use-menhir
+OCBFLAGS= -use-menhir
+OCB= ocamlbuild ${OCBFLAGS}
 
-default:
-	ocamlbuild ${OCAMLBUILDFLAGS} src/${TARGET}.byte
+.PHONY: core
+
+default: core
+
+core:
+	${OCB} core/core.cma
+
+byte:
+	${OCB} src/${TARGET}.byte
+
+run: byte
 	ocamlrun ${TARGET}.byte
 
 clean:
