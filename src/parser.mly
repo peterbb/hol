@@ -7,6 +7,7 @@
 
 %{
     open Ast
+    open ParseUtil
 %}
 
 %start <Ast.Term.t> term
@@ -24,11 +25,11 @@ term0:
     | t0=term1 IMP t1=term0
         { Term.App (Term.Con (Con.Single "imp"), [t0; t1]) }
     | BACKSLASH x = NAME DOT t = term0
-        { Term.Lam (x, Term.abs x 0 t) }
+        { Term.Lam (x, abs x 0 t) }
     | ALL x=NAME COLON t=typ0 DOT b=term0
-        { Term.App (Term.Con (Con.Family ("all", t)), [Term.Lam (x, Term.abs x 0 b)]) }
+        { Term.App (Term.Con (Con.Family ("all", t)), [Term.Lam (x, abs x 0 b)]) }
     | EX x=NAME COLON t=typ0 DOT b=term0
-        { Term.App (Term.Con (Con.Family ("ex", t)), [Term.Lam (x, Term.abs x 0 b)]) }
+        { Term.App (Term.Con (Con.Family ("ex", t)), [Term.Lam (x, abs x 0 b)]) }
 
 term1:
     | t=term2

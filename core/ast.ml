@@ -42,7 +42,6 @@ module Term : sig
     val var : int -> t list -> t
     val con : Con.t -> t list -> t
     val redex : t -> t list -> t
-    val abs : string -> int -> t -> t
 
     val mvar_subst : t -> string -> t -> t
     val shift : t -> t
@@ -62,20 +61,6 @@ end = struct
     let var x spine = App (Var x, spine)
 
     let con c spine = App (Con c, spine)
-
-    let rec abs x =
-        let rec abs i = function
-            | Lam (y, t) ->
-                Lam (y, abs (i + 1) t)
-            | App (h, s) ->
-                App (abs_head i h, List.map (abs i) s)
-        and abs_head i = function
-            | Var j -> Var j
-            | Con (Con.Single y) when x = y -> Var i
-            | Con (Con.Family (y, _)) when x = y ->
-                failwith "Term.abs: abstracting indexed constants" 
-            | (Con _ | MVar _) as h -> h
-        in abs
 
     let rec subst e lvl = function
         | Lam (x, body) ->

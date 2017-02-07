@@ -7,7 +7,7 @@ let parse_term ?(ctx=Typing.Ctx.empty) text =
     let term = Parser.term Lexer.token (Lexing.from_string text) in
     let rec abs i term = function
         | [] -> term
-        | x :: ctx -> abs (i+1) (Ast.Term.abs x i term) ctx
+        | x :: ctx -> abs (i+1) (ParseUtil.abs x i term) ctx
     in abs 0 term (Typing.Ctx.names ctx)
 
 let ctx_of_first_goal proof = 
