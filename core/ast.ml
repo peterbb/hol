@@ -1,28 +1,18 @@
-module Type : sig
-    type t = 
-        | Atom  of string
-        | Arrow of t * t
-end = struct
+module Type = struct
     type t =
         | Atom   of string
         | Arrow  of t * t
 end
 
-module Con : sig
-    type t = 
-       | Single of string
-       | Family of string * Type.t
-    val name : t -> string
-    val index : t -> Type.t option
-end = struct
+module Con = struct
     type t =
         | Single of string
         | Family of string * Type.t
 
-    let name = function
+    let name : t -> string = function
         | Single c | Family (c, _) -> c
 
-    let index = function
+    let index : t -> Type.t option = function
         | Single _ -> None
         | Family (_, i) -> Some i
 end
@@ -37,14 +27,15 @@ module Term : sig
         | MVar  of string
 
     val eq : t -> t -> bool
+    val redex : t -> t list -> t
+    val mvar_subst : t -> string -> t -> t
+    val shift : t -> t
 
     val lam : string -> t -> t
     val var : int -> t list -> t
     val con : Con.t -> t list -> t
-    val redex : t -> t list -> t
 
-    val mvar_subst : t -> string -> t -> t
-    val shift : t -> t
+
 end = struct
     type t =
         | App   of head * t list
@@ -55,12 +46,6 @@ end = struct
         | MVar  of string
 
     let eq x y = x = y
-
-    let lam x body = Lam (x, body)
-
-    let var x spine = App (Var x, spine)
-
-    let con c spine = App (Con c, spine)
 
     let rec subst e lvl = function
         | Lam (x, body) ->
@@ -108,4 +93,12 @@ end = struct
             | App (head, spine) ->
                 App (head, List.map mvar_subst spine)
         in mvar_subst
+
+
+    let lam x body = Lam (x, body)
+
+    let var x spine = App (Var x, spine)
+
+    let con c spine = App (Con c, spine)
 end
+
