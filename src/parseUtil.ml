@@ -1,5 +1,5 @@
-open Ast.Con
-open Ast.Term
+open Term
+open Con
 
 let rec abs x =
     let rec abs i = function

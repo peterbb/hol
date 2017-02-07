@@ -6,11 +6,11 @@
 %token EOF
 
 %{
-    open Ast
+    open Term
     open ParseUtil
 %}
 
-%start <Ast.Term.t> term
+%start <Term.t> term
 %start <Type.t> typ
 
 %%

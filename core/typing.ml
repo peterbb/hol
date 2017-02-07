@@ -85,7 +85,7 @@ module Sign : sig
     val add_icon   : string -> OpenType.t -> t -> t
 
     val check_type : t -> Type.t -> unit
-    val lookup_con : Ast.Con.t -> t -> Type.t
+    val lookup_con : Term.Con.t -> t -> Type.t
 end = struct
     type sort = 
         | Closed    of Type.t
@@ -118,22 +118,22 @@ end = struct
         { sign with conSign }
 
     let lookup_con c {conSign} =
-        match StringMap.find (Ast.Con.name c) conSign, (Ast.Con.index c) with
+        match StringMap.find (Term.Con.name c) conSign, (Term.Con.index c) with
         | Closed a, None -> a
         | Open a, Some b -> OpenType.fill b a
         | Closed _, Some _ -> failwith "constant not parametric"
         | Open _, None  -> failwith "constant expect type parameter"
         | exception Not_found ->
-            "Sign.lookup_con: not found:" ^ (Ast.Con.name c) |> failwith
+            "Sign.lookup_con: not found:" ^ (Term.Con.name c) |> failwith
 end
 
 
 
 module Term : sig
     val check : Sign.t -> MCtx.t -> Ctx.t
-                -> Ast.Term.t -> Type.t -> unit
+                -> Term.t -> Type.t -> unit
 end = struct
-    open Ast.Term
+    open Term
     let check sign mCtx =
         let rec check_term ctx term type_ : unit = match term, type_ with
         | App (head, spine), _ ->

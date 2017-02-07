@@ -1,5 +1,3 @@
-open Ast
-
 module rec Theory : sig
     type t
 

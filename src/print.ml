@@ -7,14 +7,14 @@ let rec type_to_string = function
     | Type.Arrow (a, b) ->
         sprintf "(%s) -> %s" (type_to_string a) (type_to_string b)
 
-open Ast.Con
+open Term.Con
 
 let con_to_string = function
     | Single c -> c
     | Family (c, t) -> sprintf "%s[%s]" c (type_to_string t)
 
 
-open Ast.Term
+open Term
 
 let rec term_to_string ctx = function
     | App (head, spine) ->

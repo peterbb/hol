@@ -2,6 +2,6 @@
 StringSet
 StringMap
 Type
-Ast
+Term
 Typing
 Hol

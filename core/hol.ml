@@ -1,7 +1,7 @@
 module rec Theory : sig
     type view = {
         sign     : Typing.Sign.t;
-        theorems : Ast.Term.t StringMap.t
+        theorems : Term.t StringMap.t
     }
 
     type t = view
@@ -14,14 +14,14 @@ module rec Theory : sig
 
     val check_type : t -> Type.t -> unit
     val check_term : t -> Typing.MCtx.t -> Typing.Ctx.t ->
-                     Ast.Term.t -> Type.t -> unit
+                     Term.t -> Type.t -> unit
 
-    val prove : string -> Ast.Term.t -> t -> Proof.t
+    val prove : string -> Term.t -> t -> Proof.t
 
 end = struct
     type view = {
         sign     : Typing.Sign.t;
-        theorems : Ast.Term.t StringMap.t
+        theorems : Term.t StringMap.t
     }
     type t = view
 
@@ -81,8 +81,8 @@ end
 and Goal : sig
     type view = {
         ctx  : Typing.Ctx.t ;
-        hyps : Ast.Term.t StringMap.t;
-        goal : Ast.Term.t
+        hyps : Term.t StringMap.t;
+        goal : Term.t
     }
     type t = view
 
@@ -90,8 +90,8 @@ and Goal : sig
 end = struct
     type view = {
         ctx : Typing.Ctx.t ;
-        hyps : Ast.Term.t StringMap.t;
-        goal : Ast.Term.t
+        hyps : Term.t StringMap.t;
+        goal : Term.t
     }
     type t = view
     let view goal = goal
@@ -103,12 +103,12 @@ and Tactic : sig
 
     val view : t -> view
 
-    val mvar_subst : Ast.Term.t -> string -> Goal.t -> Goal.t
+    val mvar_subst : Term.t -> string -> Goal.t -> Goal.t
 
-    val init : Ast.Term.t -> Goal.t
+    val init : Term.t -> Goal.t
 
     val assumption : string -> t
-    val cut        : Ast.Term.t -> string -> t
+    val cut        : Term.t -> string -> t
     val true_right : t
     val false_left : string -> t
     val and_right  : t
@@ -119,8 +119,8 @@ and Tactic : sig
     val imp_right  : string -> t
     val imp_left   : string -> string -> t
     val all_right  : string -> t
-    val all_left   : string -> Ast.Term.t -> string -> t
-    val ex_right   : Ast.Term.t -> t
+    val all_left   : string -> Term.t -> string -> t
+    val ex_right   : Term.t -> t
     val ex_left    : string -> string -> t
 
     val axiom      : t
@@ -133,8 +133,8 @@ end = struct
     open Goal
 
     let mvar_subst term mvar ({hyps; goal} as g) =
-        let goal = Ast.Term.mvar_subst term mvar goal in
-        let hyps = StringMap.map (Ast.Term.mvar_subst term mvar) hyps in
+        let goal = Term.mvar_subst term mvar goal in
+        let hyps = StringMap.map (Term.mvar_subst term mvar) hyps in
         { g with goal; hyps }
 
     let init goal =
@@ -155,7 +155,7 @@ end = struct
      *)
     let assumption h theory _ {hyps; goal} =
         match lookup_hyp h theory hyps with
-        | hyp when Ast.Term.eq goal hyp -> 
+        | hyp when Term.eq goal hyp -> 
             []
         | _ -> failwith "assumption"
 
@@ -170,14 +170,14 @@ end = struct
         [ { g with goal = e }; { g with hyps }]
 
 
-    open Ast
-
+    open Term
+    open Con
     (*
      *  -----------------
      *      |- true
      *)
     let true_right _ _ = function
-        | {goal = Term.App (Term.Con (Con.Single "true"), []) } ->
+        | {goal = App (Con (Single "true"), []) } ->
             []
         | _ -> failwith "true_right"
 
@@ -187,7 +187,7 @@ end = struct
      *)
     let false_left h theory _ = function { hyps } ->
         begin match lookup_hyp h theory hyps with
-        | Term.App (Term.Con (Con.Single "false"), []) ->
+        | Term.App (Term.Con (Single "false"), []) ->
             []
         | _ -> failwith "false_left"
         end
@@ -197,7 +197,7 @@ end = struct
      *     |- and A B
      *)
     let and_right _ _ = function
-        | {goal = Term.App (Term.Con (Con.Single "and"), [a; b]) } as g ->
+        | {goal = Term.App (Term.Con (Single "and"), [a; b]) } as g ->
             [ { g with goal = a }; {g with goal = b } ]
         | _ -> failwith "and_right"
 
@@ -209,7 +209,7 @@ end = struct
     let and_left h h0 h1 theory _ =
         function { hyps } as g ->
             begin match lookup_hyp h theory hyps with
-            | Term.App (Term.Con (Con.Single "and"), [a; b]) ->
+            | Term.App (Term.Con (Single "and"), [a; b]) ->
                 hyps
                 |> StringMap.remove h
                 |> StringMap.add h0 a
@@ -347,7 +347,7 @@ and Proof : sig
         mCtx : Typing.MCtx.t;
         goals : Goal.view list;
         name  : string;
-        result : Ast.Term.t;
+        result : Term.t;
         theory : Theory.view
     }
     type t = view
@@ -357,13 +357,13 @@ and Proof : sig
     val apply : Tactic.t -> t -> t
     val qed : t -> Theory.t
     val mvar : string -> Type.t -> t -> t
-    val set_mvar : string -> Ast.Term.t -> t -> t
+    val set_mvar : string -> Term.t -> t -> t
 end = struct
     type view = {
         mCtx : Typing.MCtx.t;
         goals : Goal.view list;
         name : string;
-        result : Ast.Term.t;
+        result : Term.t;
         theory : Theory.view
     }
     type t = view
