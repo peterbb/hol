@@ -379,7 +379,6 @@ and Proof : sig
     val mvar : string -> Ast.Type.t -> t -> t
     val set_mvar : string -> Ast.Term.t -> t -> t
     val status : t -> t
-    val ctx : int -> t -> Typing.Ctx.t
 end = struct
     type view = {
         mCtx : Typing.MCtx.t;
@@ -442,7 +441,5 @@ end = struct
             Tactic.display g
         end; 
         proof
-
-    let ctx i {goals} = Tactic.ctx (List.nth goals i)
 end
 
