@@ -3,10 +3,10 @@ module Con = struct
         | Single of string
         | Family of string * Type.t
 
-    let name : t -> string = function
+    let name = function
         | Single c | Family (c, _) -> c
 
-    let index : t -> Type.t option = function
+    let index = function
         | Single _ -> None
         | Family (_, i) -> Some i
 end

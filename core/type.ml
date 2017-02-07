@@ -1,4 +1,3 @@
-
 type t = 
     | Atom  of string
     | Arrow of t * t
@@ -16,12 +15,10 @@ end = struct
     let defined = StringSet.mem
 end
 
-let check typeSig =
-    let rec check = function
-        | Atom x ->
-            if Sign.defined x typeSig
-            then ()
-            else failwith ("Type.check: undeclared atom: " ^ x)
-        | Arrow (a, b) ->
-            check a; check b
-    in check
+let rec check typeSign = function
+    | Atom x ->
+        if Sign.defined x typeSign
+        then ()
+        else failwith ("Type.check: undeclared atom: " ^ x)
+    | Arrow (a, b) ->
+        check typeSign a; check typeSign b
