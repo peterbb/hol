@@ -1,6 +1,7 @@
 
 StringSet
 StringMap
+Type
 Ast
 Typing
 Hol

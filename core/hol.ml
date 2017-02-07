@@ -10,11 +10,11 @@ module rec Theory : sig
 
     val init : t
     val add_type : string -> t -> t
-    val add_con : string -> Ast.Type.t -> t -> t
+    val add_con : string -> Type.t -> t -> t
 
-    val check_type : t -> Ast.Type.t -> unit
+    val check_type : t -> Type.t -> unit
     val check_term : t -> Typing.MCtx.t -> Typing.Ctx.t ->
-                     Ast.Term.t -> Ast.Type.t -> unit
+                     Ast.Term.t -> Type.t -> unit
 
     val prove : string -> Ast.Term.t -> t -> Proof.t
 
@@ -43,9 +43,9 @@ end = struct
         { theory with sign = Typing.Sign.add_icon name typ theory.sign }
 
     let init = 
-        let prop = Ast.Type.Atom "o" in
-        let nat = Ast.Type.Atom "nat" in
-        let arrow a b = Ast.Type.Arrow (a, b) in
+        let prop = Type.Atom "o" in
+        let nat = Type.Atom "nat" in
+        let arrow a b = Type.Arrow (a, b) in
         let binary_connective = arrow prop (arrow prop prop) in
         let quantifier =
             Typing.OpenType.Arrow (Typing.OpenType.Arrow
@@ -70,7 +70,7 @@ end = struct
 
     let prove name goal theory =
         check_term theory Typing.MCtx.empty Typing.Ctx.empty
-                   goal (Ast.Type.Atom "o");
+                   goal (Type.Atom "o");
         let open Proof in
         let goals = [Tactic.init goal] in
         let mCtx = Typing.MCtx.empty in
@@ -165,7 +165,7 @@ end = struct
      * Gamma; Delta |- C
      *)
     let cut e h theory mCtx ({ctx; hyps} as g) =
-        Theory.check_term theory mCtx ctx e (Ast.Type.Atom "o");
+        Theory.check_term theory mCtx ctx e (Type.Atom "o");
         let hyps = StringMap.add h e hyps in
         [ { g with goal = e }; { g with hyps }]
 
@@ -356,7 +356,7 @@ and Proof : sig
 
     val apply : Tactic.t -> t -> t
     val qed : t -> Theory.t
-    val mvar : string -> Ast.Type.t -> t -> t
+    val mvar : string -> Type.t -> t -> t
     val set_mvar : string -> Ast.Term.t -> t -> t
 end = struct
     type view = {

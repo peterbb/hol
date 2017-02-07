@@ -1,12 +1,10 @@
 open Printf
 
-open Ast.Type
-
 let rec type_to_string = function
-    | Atom s -> s
-    | Arrow (Atom s, b) ->
+    | Type.Atom s -> s
+    | Type.Arrow (Atom s, b) ->
         sprintf "%s -> %s" s (type_to_string b)
-    | Arrow (a, b) ->
+    | Type.Arrow (a, b) ->
         sprintf "(%s) -> %s" (type_to_string a) (type_to_string b)
 
 open Ast.Con

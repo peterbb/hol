@@ -11,7 +11,7 @@
 %}
 
 %start <Ast.Term.t> term
-%start <Ast.Type.t> typ
+%start <Type.t> typ
 
 %%
 

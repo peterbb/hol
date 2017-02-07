@@ -1,9 +1,3 @@
-module Type = struct
-    type t =
-        | Atom   of string
-        | Arrow  of t * t
-end
-
 module Con = struct
     type t =
         | Single of string
@@ -34,8 +28,6 @@ module Term : sig
     val lam : string -> t -> t
     val var : int -> t list -> t
     val con : Con.t -> t list -> t
-
-
 end = struct
     type t =
         | App   of head * t list

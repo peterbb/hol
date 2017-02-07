@@ -1,40 +1,11 @@
-module TypeSign : sig
-    type t
-    val empty   : t
-    val add     : string -> t -> t
-    val defined : string -> t -> bool
-end = struct
-    type t = StringSet.t
-
-    let empty = StringSet.empty
-    let add = StringSet.add_unique
-    let defined = StringSet.mem
-end
-
-module Type : sig
-    val check : TypeSign.t -> Ast.Type.t -> unit
-end = struct
-    open Ast.Type
-
-    let check typeSig =
-        let rec check = function
-        | Atom x ->
-            if TypeSign.defined x typeSig
-            then ()
-            else failwith "Type.check: atom not declared"
-        | Arrow (a, b) ->
-            check a; check b
-        in check
-end
-
 module OpenType : sig
     type t = 
         | Hole
         | Atom  of string
         | Arrow of t * t
 
-    val check : TypeSign.t -> t -> unit
-    val fill : Ast.Type.t -> t -> Ast.Type.t
+    val check : Type.Sign.t -> t -> unit
+    val fill : Type.t -> t -> Type.t
 end = struct
     type t =
         | Hole
@@ -45,34 +16,32 @@ end = struct
         let rec check = function
         | Hole -> ()
         | Atom x ->
-            if TypeSign.defined x typeSig
+            if Type.Sign.defined x typeSig
             then ()
             else failwith "Type.check: atom not declared"
         | Arrow (a, b) ->
             check a; check b
         in check
 
-    open Type
-
     let fill t =
         let rec fill = function
         | Hole -> t
-        | Atom x -> Ast.Type.Atom x
-        | Arrow (a, b) -> Ast.Type.Arrow (fill a, fill b)
+        | Atom x -> Type.Atom x
+        | Arrow (a, b) -> Type.Arrow (fill a, fill b)
         in fill
 end
 
 module Ctx : sig
     type t
     val empty : t
-    val add : string -> Ast.Type.t -> t -> t
-    val lookup : int -> t -> Ast.Type.t
+    val add : string -> Type.t -> t -> t
+    val lookup : int -> t -> Type.t
     val name : int -> t -> string
     val is_empty : t -> bool
-    val iter : (string -> Ast.Type.t -> unit) -> t -> unit
+    val iter : (string -> Type.t -> unit) -> t -> unit
     val names : t -> string list
 end = struct
-    type t = (string * Ast.Type.t) list
+    type t = (string * Type.t) list
 
     let empty = []
     let add var type_ ctx = (var, type_) :: ctx
@@ -90,13 +59,13 @@ end
 module MCtx : sig
     type t
     val empty : t
-    val add : string -> Ast.Type.t -> t -> t
-    val lookup : string -> t -> Ast.Type.t
+    val add : string -> Type.t -> t -> t
+    val lookup : string -> t -> Type.t
     val remove : string -> t -> t
     val is_empty : t -> bool
-    val iter : (string -> Ast.Type.t -> unit) -> t -> unit
+    val iter : (string -> Type.t -> unit) -> t -> unit
 end = struct
-    type t = Ast.Type.t StringMap.t
+    type t = Type.t StringMap.t
     let empty = StringMap.empty
     let add = StringMap.add_unique
     let lookup mvar mCtx = 
@@ -112,30 +81,30 @@ module Sign : sig
 
     val empty      : t
     val add_type   : string -> t -> t
-    val add_con    : string -> Ast.Type.t -> t -> t
+    val add_con    : string -> Type.t -> t -> t
     val add_icon   : string -> OpenType.t -> t -> t
 
-    val check_type : t -> Ast.Type.t -> unit
-    val lookup_con : Ast.Con.t -> t -> Ast.Type.t
+    val check_type : t -> Type.t -> unit
+    val lookup_con : Ast.Con.t -> t -> Type.t
 end = struct
     type sort = 
-        | Closed    of Ast.Type.t
+        | Closed    of Type.t
         | Open      of OpenType.t
 
     type t = {
-         typeSign : TypeSign.t ;
+         typeSign : Type.Sign.t ;
          conSign  : sort StringMap.t
     }
 
     let empty = {
-        typeSign = TypeSign.empty;
+        typeSign = Type.Sign.empty;
         conSign = StringMap.empty
     }
 
     let check_type {typeSign} t = Type.check typeSign t
 
     let add_type name ({typeSign} as sign) =
-        let typeSign = TypeSign.add name typeSign in
+        let typeSign = Type.Sign.add name typeSign in
         { sign with typeSign }
 
     let add_con name type_ ({typeSign; conSign} as sign) =
@@ -162,17 +131,16 @@ end
 
 module Term : sig
     val check : Sign.t -> MCtx.t -> Ctx.t
-                -> Ast.Term.t -> Ast.Type.t -> unit
+                -> Ast.Term.t -> Type.t -> unit
 end = struct
     open Ast.Term
-    open Ast.Type
     let check sign mCtx =
         let rec check_term ctx term type_ : unit = match term, type_ with
         | App (head, spine), _ ->
             check_spine ctx (infer_head ctx head) spine type_
-        | Lam (x, e), Arrow (a, b) ->
+        | Lam (x, e), Type.Arrow (a, b) ->
             check_term (Ctx.add x a ctx) e b
-        | Lam _, Atom _ ->
+        | Lam _, Type.Atom _ ->
             failwith "Term.check: lambda term expected function type"
 
         and infer_head ctx = function
@@ -185,10 +153,10 @@ end = struct
            if a = b then () else failwith "check_spine"
         | e :: spine'->
             begin match a with
-            | Arrow (a0, a1) ->
+            | Type.Arrow (a0, a1) ->
                 check_term ctx e a0;
                 check_spine ctx a1 spine' b
-            | Atom _ ->
+            | Type.Atom _ ->
                 failwith "atom elimiated"
             end
 
