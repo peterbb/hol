@@ -19,7 +19,17 @@ and head =
     | Con   of Con.t
     | MVar  of string
 
-let eq x y = x = y
+let rec eq x y = match x, y with
+    | Lam (_, t), Lam (_, s) ->
+        eq t s
+    | App (h, t), App (h', t') ->
+        h = h' && eq_spine (t, t')
+    | _ -> false
+and eq_spine = function
+    | [], [] -> true
+    | t :: ts, s :: ss ->
+        eq t s && eq_spine (ts, ss)
+    | _ -> false
 
 let rec subst e lvl = function
     | Lam (x, body) ->
